@@ -496,6 +496,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	 * sure they're properly initialized before using any stack-related
 	 * functions again.
 	 */
+	//TODO arch_dup_task_struct（）克隆了堆栈相关的字段。 在再次使用任何与堆栈相关的功能之前，请确保它们已正确初始化。
 	tsk->stack = stack;
 #ifdef CONFIG_VMAP_STACK
 	tsk->stack_vm_area = stack_vm_area;
@@ -514,6 +515,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 	 * then. Until then, filter must be NULL to avoid messing up
 	 * the usage counts on the error path calling free_task.
 	 */
+	//TODO 一旦我们处于叹息锁定状态，我们必须处理设置seccomp过滤器，以防原点在现在和之后发生变化。 在此之前，过滤器必须为NULL，以避免弄错调用free_task的错误路径上的使用计数。
 	tsk->seccomp.filter = NULL;
 #endif
 
@@ -1452,6 +1454,7 @@ init_task_pid(struct task_struct *task, enum pid_type type, struct pid *pid)
  * parts of the process environment (as per the clone
  * flags). The actual kick-off is left to the caller.
  */
+//TODO 这将创建一个新进程，作为旧版本的副本，但实际上还没有处理它。它复制寄存器和进程环境的所有适当部分（根据克隆标志）。实际开球权由来电者决定。
 static __latent_entropy struct task_struct *copy_process(
 					unsigned long clone_flags,
 					unsigned long stack_start,
@@ -1475,6 +1478,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * Thread groups must share signals as well, and detached threads
 	 * can only be started up within the thread group.
 	 */
+	//TODO 线程组也必须共享信号，分离线程只能在线程组中启动。
 	if ((clone_flags & CLONE_THREAD) && !(clone_flags & CLONE_SIGHAND))
 		return ERR_PTR(-EINVAL);
 
@@ -1483,6 +1487,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * thread groups also imply shared VM. Blocking this case allows
 	 * for various simplifications in other code.
 	 */
+	//TODO 共享信号处理程序意味着共享VM。通过以上方式，线程组也意味着共享虚拟机。阻塞此情况允许在其他代码中进行各种简化。
 	if ((clone_flags & CLONE_SIGHAND) && !(clone_flags & CLONE_VM))
 		return ERR_PTR(-EINVAL);
 
@@ -1492,6 +1497,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * multi-rooted process trees, prevent global and container-inits
 	 * from creating siblings.
 	 */
+	//TODO 全局init的兄弟姐妹在退出时仍然是僵尸，因为它们没有被父进程（swapper）收集。 要解决这个问题并避免多根进程树，可以防止全局和容器创建兄弟。
 	if ((clone_flags & CLONE_PARENT) &&
 				current->signal->flags & SIGNAL_UNKILLABLE)
 		return ERR_PTR(-EINVAL);
@@ -1500,6 +1506,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * If the new process will be in a different pid or user namespace
 	 * do not allow it to share a thread group with the forking task.
 	 */
+	//TODO 如果新进程将在不同的pid或用户命名空间中，则不允许它与分支任务共享一个线程组。
 	if (clone_flags & CLONE_THREAD) {
 		if ((clone_flags & (CLONE_NEWUSER | CLONE_NEWPID)) ||
 		    (task_active_pid_ns(current) !=
@@ -1513,16 +1520,16 @@ static __latent_entropy struct task_struct *copy_process(
 
 	retval = -ENOMEM;
 
-    //为新进程创建一个内核栈、 thread_info 和 task_struct, 这些值与当前进程的值相同。此时, 子进程的 task_struct 与父进程完全相同。
+    //TODO (1), 为新进程创建一个内核栈、 thread_info 和 task_struct, 这些值与当前进程的值相同。此时, 子进程的 task_struct 与父进程完全相同。
 	p = dup_task_struct(current, node);
 	if (!p)
 		goto fork_out;
 
-    //jiangkui ftrace 的作用是帮助开发人员了解 Linux 内核的运行时行为，以便进行故障调试或性能分析。
+    //TODO ftrace 的作用是帮助开发人员了解 Linux 内核的运行时行为，以便进行故障调试或性能分析。
 	ftrace_graph_init_task(p);
 
-    //jiangkui rtmutex作为futex的底层实现，有两个比较重要的特性。一个是优先级继承，一个是死锁检测。
-    //Futex 是Fast Userspace muTexes的缩写, Futex按英文翻译过来就是快速用户空间互斥体。 一般进程间同步都在内核完成, Futex 是在用户态检查竞争条件, 减少内核开销。
+    //TODO rtmutex作为futex的底层实现，有两个比较重要的特性。一个是优先级继承，一个是死锁检测。
+    //TODO Futex 是Fast Userspace muTexes的缩写, Futex按英文翻译过来就是快速用户空间互斥体。 一般进程间同步都在内核完成, Futex 是在用户态检查竞争条件, 减少内核开销。
 	rt_mutex_init_task(p);
 
 #ifdef CONFIG_PROVE_LOCKING
@@ -1530,6 +1537,7 @@ static __latent_entropy struct task_struct *copy_process(
 	DEBUG_LOCKS_WARN_ON(!p->softirqs_enabled);
 #endif
 	retval = -EAGAIN;
+	//TODO (2), 检查当前用户拥有的进程数目没有超过给他分配的资源限制。 貌似 max = 8
 	if (atomic_read(&p->real_cred->user->processes) >=
 			task_rlimit(p, RLIMIT_NPROC)) {
 		if (p->real_cred->user != INIT_USER &&
@@ -1547,15 +1555,17 @@ static __latent_entropy struct task_struct *copy_process(
 	 * triggers too late. This doesn't hurt, the check is only there
 	 * to stop root fork bombs.
 	 */
+	//TODO 如果多个线程在copy_process（）中，则此检查触发时间太晚。 这没有伤害，检查只有在那里停止根叉炸弹。
 	retval = -EAGAIN;
 	if (nr_threads >= max_threads)
 		goto bad_fork_cleanup_count;
 
 	delayacct_tsk_init(p);	/* Must remain after dup_task_struct() */
+	//TODO (5), 进程是否拥有超级用户权限的 PF_SUPERPRIV 标志被清0, 进程还没有调用 ecec() 函数的 PF_FORKNOEXEC 标志被设置
 	p->flags &= ~(PF_SUPERPRIV | PF_WQ_WORKER | PF_IDLE);
 	p->flags |= PF_FORKNOEXEC;
 
-    //初始化子进程链表
+    //TODO 初始化子进程链表
 	INIT_LIST_HEAD(&p->children);
 	INIT_LIST_HEAD(&p->sibling);
 
@@ -1639,6 +1649,7 @@ static __latent_entropy struct task_struct *copy_process(
 #endif
 
 	/* Perform scheduler related setup. Assign this task to a CPU. */
+	//TODO 执行调度器相关设置。 将此任务分配给CPU。
 	retval = sched_fork(clone_flags, p);
 	if (retval)
 		goto bad_fork_cleanup_policy;
@@ -1650,6 +1661,7 @@ static __latent_entropy struct task_struct *copy_process(
 	if (retval)
 		goto bad_fork_cleanup_perf;
 	/* copy all the process information */
+	//TODO 复制所有过程信息
 	shm_init_task(p);
 	retval = copy_semundo(clone_flags, p);
 	if (retval)
@@ -1680,6 +1692,7 @@ static __latent_entropy struct task_struct *copy_process(
 		goto bad_fork_cleanup_io;
 
 	if (pid != &init_struct_pid) {
+		//TODO (6), 调用 alloc_pid 为新进程分配一个有效的PID
 		pid = alloc_pid(p->nsproxy->pid_ns_for_children);
 		if (IS_ERR(pid)) {
 			retval = PTR_ERR(pid);
@@ -1691,6 +1704,7 @@ static __latent_entropy struct task_struct *copy_process(
 	/*
 	 * Clear TID on mm_release()?
 	 */
+	//TODO 清除mm_release（）上的TID
 	p->clear_child_tid = (clone_flags & CLONE_CHILD_CLEARTID) ? child_tidptr : NULL;
 #ifdef CONFIG_BLOCK
 	p->plug = NULL;
@@ -1706,6 +1720,7 @@ static __latent_entropy struct task_struct *copy_process(
 	/*
 	 * sigaltstack should be cleared when sharing the same VM
 	 */
+	//TODO 在共享同一台虚拟机时应该清除sigaltstack
 	if ((clone_flags & (CLONE_VM|CLONE_VFORK)) == CLONE_VM)
 		sas_ss_reset(p);
 
@@ -1713,6 +1728,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * Syscall tracing and stepping should be turned off in the
 	 * child regardless of CLONE_PTRACE.
 	 */
+	//TODO 应该关闭Syscall跟踪和步进	孩子不管CLONE_PTRACE。
 	user_disable_single_step(p);
 	clear_tsk_thread_flag(p, TIF_SYSCALL_TRACE);
 #ifdef TIF_SYSCALL_EMU
@@ -1721,6 +1737,7 @@ static __latent_entropy struct task_struct *copy_process(
 	clear_all_latency_tracing(p);
 
 	/* ok, now we should be set up.. */
+	//TODO 好的，现在我们应该设立
 	p->pid = pid_nr(pid);
 	if (clone_flags & CLONE_THREAD) {
 		p->exit_signal = -1;
@@ -1750,6 +1767,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * between here and cgroup_post_fork() if an organisation operation is in
 	 * progress.
 	 */
+	//TODO 确保cgroup子系统策略允许新进程被分支。 应该注意的是，如果组织操作正在进行，新进程的css_set可以在这里和cgroup_post_fork（）之间更改。
 	retval = cgroup_can_fork(p);
 	if (retval)
 		goto bad_fork_free_pid;
@@ -1758,9 +1776,11 @@ static __latent_entropy struct task_struct *copy_process(
 	 * Make it visible to the rest of the system, but dont wake it up yet.
 	 * Need tasklist lock for parent etc handling!
 	 */
+	//TODO 使系统的其余部分可见，但不要唤醒它。	需要任务列表锁为父等处理！
 	write_lock_irq(&tasklist_lock);
 
 	/* CLONE_PARENT re-uses the old parent */
+	//TODO CLONE_PARENT重新使用旧的父级
 	if (clone_flags & (CLONE_PARENT|CLONE_THREAD)) {
 		p->real_parent = current->real_parent;
 		p->parent_exec_id = current->parent_exec_id;
@@ -1775,6 +1795,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * Copy seccomp details explicitly here, in case they were changed
 	 * before holding sighand lock.
 	 */
+	//TODO 这里明确地复制seccomp详细信息，以防它们被更改	之前拿着叹息锁。
 	copy_seccomp(p);
 
 	/*
@@ -1785,6 +1806,7 @@ static __latent_entropy struct task_struct *copy_process(
 	 * A fatal signal pending means that current will exit, so the new
 	 * thread can't slip out of an OOM kill (or normal SIGKILL).
 	*/
+	//TODO 进程组和会话信号需要在叉子前面传递给父母，或者在叉子之后将其传递给父节点和子节点。 在我们将新进程添加到进程组之前重新启动信号。	一个致命的信号挂起意味着电流将退出，所以新的线程不能滑出一个OOM杀死（或正常的SIGKILL）。
 	recalc_sigpending();
 	if (signal_pending(current)) {
 		spin_unlock(&current->sighand->siglock);
@@ -1918,6 +1940,7 @@ struct task_struct *fork_idle(int cpu)
  * It copies the process, and if successful kick-starts
  * it and waits for it to finish using the VM if required.
  */
+//TODO 好的，这是主叉例程。它复制这个过程，如果成功启动它，并等待它完成使用VM，如果需要的话。
 long _do_fork(unsigned long clone_flags,
 	      unsigned long stack_start,
 	      unsigned long stack_size,
@@ -1935,6 +1958,7 @@ long _do_fork(unsigned long clone_flags,
 	 * requested, no event is reported; otherwise, report if the event
 	 * for the type of forking is enabled.
 	 */
+	//TODO 确定是否与事件报告载体。当调用kernel_thread或clone_untraced是有明确要求的，没有什么事件是道；否则，报告如果型分叉事件启用。
 	if (!(clone_flags & CLONE_UNTRACED)) {
 		if (clone_flags & CLONE_VFORK)
 			trace = PTRACE_EVENT_VFORK;
@@ -1947,6 +1971,7 @@ long _do_fork(unsigned long clone_flags,
 			trace = 0;
 	}
 
+	//TODO copy_process 完成了创建子进程的过程。执行成功会返回指向子进程的指针。新创建的子进程会被唤醒并让其投入运行。内核有意让子进程首先执行, 子进程如果直接调用 exec 函数, 则可以避免写时拷贝的额外开销。
 	p = copy_process(clone_flags, stack_start, stack_size,
 			 child_tidptr, NULL, trace, tls, NUMA_NO_NODE);
 	add_latent_entropy();
@@ -1954,6 +1979,7 @@ long _do_fork(unsigned long clone_flags,
 	 * Do this prior waking up the new thread - the thread pointer
 	 * might get invalid after that point, if the thread exits quickly.
 	 */
+	//TODO 在唤醒新线程之前执行此操作——线程指针如果线程很快退出，那么在这一点之后可能会无效。
 	if (!IS_ERR(p)) {
 		struct completion vfork;
 		struct pid *pid;
@@ -1975,6 +2001,7 @@ long _do_fork(unsigned long clone_flags,
 		wake_up_new_task(p);
 
 		/* forking complete and child started to run, tell ptracer */
+		//TODO 分叉的完整和孩子开始跑，告诉纯品
 		if (unlikely(trace))
 			ptrace_event_pid(trace, pid);
 
@@ -1993,6 +2020,8 @@ long _do_fork(unsigned long clone_flags,
 #ifndef CONFIG_HAVE_COPY_THREAD_TLS
 /* For compatibility with architectures that call do_fork directly rather than
  * using the syscall entry points below. */
+//TODO 为架构，而不是直接调用do_fork兼容性使用下面的系统调用的入口点。
+//TODO 从这里开始, 由 clone() 来调用
 long do_fork(unsigned long clone_flags,
 	      unsigned long stack_start,
 	      unsigned long stack_size,
